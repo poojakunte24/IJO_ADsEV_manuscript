@@ -1,0 +1,71 @@
+t_wilcox_test_function<-function(datafile, group,loopstart){
+  
+  
+ 
+  group_colno<-which(colnames(datafile)==group)
+  
+  case_n<-table(datafile[,group_colno][[2]])
+  
+  Output <- data.frame(mirna=character(), true_signal_in_all=numeric(), true_Signal_in_controls=numeric(), true_signal_in_cases=numeric(), DE_pval=numeric(),test=character(), median_true_controls=numeric(),  median_true_cases=numeric(),  geomean=numeric(),stringsAsFactors = F)
+  foldchange_matrix<-data.frame()
+  
+  for (i in loopstart:ncol(datafile)){
+    
+    splitdata<-split(datafile[,i], datafile[,group_colno])
+    if(length(unique(splitdata[[1]]))>=6 & length(unique(splitdata[[2]]))>=6){
+      
+      shap <- tapply(datafile[,i], datafile[,group_colno], shapiro.test)
+      median_val <- tapply(datafile[,i], datafile[,group_colno], median,na.rm=T)
+      mean_val <- tapply(datafile[,i], datafile[,group_colno], mean, na.rm=T)
+     
+      
+      ##create a separate dataframe
+      df<-cbind(datafile[,group_colno], datafile[,i])
+      ##fetch indices where value==0.1 and store them
+      NA_index<-which(as.numeric(df[,2])==0.1)
+      ## make indices with 0.1 as NA
+      df[NA_index,2]<-NA
+      ##create group variable as factor
+      df[,1]<-as.factor(df[,1])
+      
+      ##calculate mean,median
+      split2<-split(df[,2], df[,1]) ### split2[[1]]= controls, split2[[2]]=cases
+      mean2_controls<-mean(split2[[1]], na.rm=T)
+      mean2_cases<-mean(split2[[2]], na.rm=T)
+      median2_controls<-median(split2[[1]], na.rm=T)
+      median2_cases<-median(split2[[2]], na.rm=T)
+      sd2_controls<-sd(split2[[1]], na.rm=T)
+      zscore_cases<-(split2[[2]]-median2_controls)/sd2_controls
+      print(zscore_cases)
+      
+      ##geomean calculation
+      geomean<-mean(split2[[2]]-median(split2[[1]], na.rm=T), na.rm=T)
+      true_all<-length(which(!is.na(df[,2])))
+      true_controls<-length(which(!is.na(split2[[1]])))
+      true_cases<-length(which(!is.na(split2[[2]])))
+      
+     
+      
+      if(shap[[1]]$p.value > 0.05 && shap[[2]]$p.value >0.05){
+        t_res <- t.test(datafile[,i] ~ datafile[,group_colno],var.equal=F, data = datafile, na.rm=T)
+        
+        Output[i,]<-c(colnames(datafile)[i], true_all, true_controls, true_cases, t_res$p.value,"t-test", round(median2_controls,3), round(median2_cases,3), round(geomean,3))
+      }
+      else{
+        w_res <- wilcox.test(datafile[,i] ~ datafile[,group_colno], data = datafile, na.rm=T)
+        
+        Output[i,]<-c(colnames(datafile)[i], true_all, true_controls, true_cases, round(w_res$p.value,3),"wilcox-test",  round(median2_controls,3), round(median2_cases,3), round(geomean,3))
+      }
+      
+    } else {
+      
+      next
+    }
+    
+    
+  }
+  
+  return(list(na.omit(Output)))
+}
+
+
